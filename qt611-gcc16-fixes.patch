@@ -1,0 +1,155 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 19e341b..7b1827c 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -31,6 +31,10 @@ target_compile_definitions(vela PRIVATE
+     VELA_APP_ID="${VELA_APP_ID}"
+     VELA_VERSION="${PROJECT_VERSION}")
+ 
++# The generated QML type registrations refer to the headers in src/ by bare
++# name (e.g. "historymodel.h"), so src/ has to be on the include path.
++target_include_directories(vela PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
++
+ file(GLOB VELA_ICONS  RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} icons/*.svg)
+ file(GLOB VELA_THEMES RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} themes/*.json)
+ file(GLOB VELA_FONTS  RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} fonts/*.otf)
+diff --git a/qml/components/Icon.qml b/qml/components/Icon.qml
+index af4d716..8c5d7f1 100644
+--- a/qml/components/Icon.qml
++++ b/qml/components/Icon.qml
+@@ -3,14 +3,21 @@ import QtQuick.Controls.impl as Impl
+ import Vela
+ 
+ // Monochrome SVG icon, tinted to any colour.
+-Impl.IconImage {
++Item {
+     id: root
+     property string name
+     property int size: 20
+-    source: name ? Theme.icon(name) : ""
+-    sourceSize: Qt.size(size, size)
++    property color color: Theme.c.text
++    implicitWidth: size
++    implicitHeight: size
+     width: size
+     height: size
+-    color: Theme.c.text
+-    fillMode: Image.PreserveAspectFit
++
++    Impl.IconImage {
++        anchors.fill: parent
++        source: root.name ? Theme.icon(root.name) : ""
++        sourceSize: Qt.size(root.size, root.size)
++        color: root.color
++        fillMode: Image.PreserveAspectFit
++    }
+ }
+diff --git a/qml/views/EqualizerSheet.qml b/qml/views/EqualizerSheet.qml
+index 9a59d89..6b8decd 100644
+--- a/qml/views/EqualizerSheet.qml
++++ b/qml/views/EqualizerSheet.qml
+@@ -111,7 +111,7 @@ MenuSheet {
+                         return f >= 1000 ? (f / 1000) + "k" : Math.round(f) + ""
+                     }
+                     color: col.isPre ? Theme.c.textDim : Theme.c.textMuted
+-                    font.pixelSize: 10.5
++                    font.pixelSize: Math.round(10.5)
+                     font.weight: Font.DemiBold
+                     Layout.alignment: Qt.AlignHCenter
+                 }
+diff --git a/qml/views/LibraryView.qml b/qml/views/LibraryView.qml
+index ed73954..415cd35 100644
+--- a/qml/views/LibraryView.qml
++++ b/qml/views/LibraryView.qml
+@@ -241,7 +241,7 @@ Item {
+         background: Rectangle { implicitWidth: 220; color: Theme.c.elevated; radius: Theme.opt.radius * 0.8; border.color: Theme.c.border }
+         delegate: MenuItem {
+             id: mi
+-            contentItem: Text { text: mi.text; color: Theme.c.text; font.pixelSize: 13.5; leftPadding: 6 }
++            contentItem: Text { text: mi.text; color: Theme.c.text; font.pixelSize: Math.round(13.5); leftPadding: 6 }
+             background: Rectangle { radius: Theme.opt.radius * 0.5; color: mi.highlighted ? Theme.alpha(Theme.c.text, 0.08) : "transparent" }
+         }
+         Action { text: qsTr("Play"); onTriggered: root.play(ctx.row) }
+diff --git a/qml/views/PlayerView.qml b/qml/views/PlayerView.qml
+index 2f836ce..4c3f306 100644
+--- a/qml/views/PlayerView.qml
++++ b/qml/views/PlayerView.qml
+@@ -329,7 +329,7 @@ FocusScope {
+                 Text {
+                     text: root.app.fmt(seek.pressedOnce ? seek.dragValue * player.length : player.time)
+                     color: "#FFFFFF"
+-                    font.pixelSize: 12.5
++                    font.pixelSize: Math.round(12.5)
+                     font.weight: Font.DemiBold
+                     font.features: ({ "tnum": 1 })
+                     Layout.preferredWidth: 58
+@@ -346,7 +346,7 @@ FocusScope {
+                 Text {
+                     text: root.showRemaining ? "−" + root.app.fmt(player.length - player.time) : root.app.fmt(player.length)
+                     color: Theme.alpha("#FFFFFF", 0.75)
+-                    font.pixelSize: 12.5
++                    font.pixelSize: Math.round(12.5)
+                     font.weight: Font.DemiBold
+                     font.features: ({ "tnum": 1 })
+                     horizontalAlignment: Text.AlignRight
+@@ -472,7 +472,7 @@ FocusScope {
+                         spacing: 10
+                         Text { text: qrow.index + 1; color: Theme.c.textMuted; font.pixelSize: 12; font.features: ({ "tnum": 1 }); Layout.preferredWidth: 20; visible: !qrow.isCurrent }
+                         Icon { visible: qrow.isCurrent; name: player.playing ? "sparkle" : "pause"; size: 16; color: Theme.c.accent; Layout.preferredWidth: 20 }
+-                        Text { text: qrow.title; color: qrow.isCurrent ? Theme.c.accent : Theme.c.text; font.pixelSize: 13.5; font.weight: qrow.isCurrent ? Font.DemiBold : Font.Normal; elide: Text.ElideRight; Layout.fillWidth: true }
++                        Text { text: qrow.title; color: qrow.isCurrent ? Theme.c.accent : Theme.c.text; font.pixelSize: Math.round(13.5); font.weight: qrow.isCurrent ? Font.DemiBold : Font.Normal; elide: Text.ElideRight; Layout.fillWidth: true }
+                         Icon { name: qrow.kind === "audio" ? "music" : "film"; size: 14; color: Theme.c.textMuted }
+                     }
+                     MouseArea { id: rowMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: queue.currentIndex = qrow.index }
+diff --git a/qml/views/QueueView.qml b/qml/views/QueueView.qml
+index fd0a16a..4017059 100644
+--- a/qml/views/QueueView.qml
++++ b/qml/views/QueueView.qml
+@@ -107,7 +107,7 @@ Item {
+                         ColumnLayout {
+                             spacing: 2
+                             Layout.fillWidth: true
+-                            Text { text: slot.title; color: slot.isCurrent ? Theme.c.accent : Theme.c.text; font.pixelSize: 14.5; font.weight: Font.DemiBold; elide: Text.ElideRight; Layout.fillWidth: true }
++                            Text { text: slot.title; color: slot.isCurrent ? Theme.c.accent : Theme.c.text; font.pixelSize: Math.round(14.5); font.weight: Font.DemiBold; elide: Text.ElideRight; Layout.fillWidth: true }
+                             Text { text: slot.isCurrent ? qsTr("Now playing") : qsTr("#%1").arg(slot.index + 1); color: Theme.c.textMuted; font.pixelSize: 12 }
+                         }
+                         IconButton { icon: "close"; size: 32; iconSize: 15; opacity: rowMa.containsMouse ? 1 : 0; tip: qsTr("Remove"); onClicked: root.queue.remove(slot.index) }
+diff --git a/qml/views/TracksSheet.qml b/qml/views/TracksSheet.qml
+index 952efbb..a5bd7c9 100644
+--- a/qml/views/TracksSheet.qml
++++ b/qml/views/TracksSheet.qml
+@@ -65,7 +65,7 @@ MenuSheet {
+         Text {
+             text: (dr.value > 0 ? "+" : "") + dr.value + " ms"
+             color: dr.value === 0 ? Theme.c.textMuted : Theme.c.accent
+-            font.pixelSize: 12.5
++            font.pixelSize: Math.round(12.5)
+             font.weight: Font.DemiBold
+             font.features: ({ "tnum": 1 })
+             horizontalAlignment: Text.AlignHCenter
+diff --git a/src/videoitem.h b/src/videoitem.h
+index 6826e87..c162231 100644
+--- a/src/videoitem.h
++++ b/src/videoitem.h
+@@ -5,7 +5,7 @@
+ #include <QQuickItem>
+ #include <QtQml/qqmlregistration.h>
+ 
+-class VlcPlayer;
++#include "vlcplayer.h"
+ 
+ // Displays the frames produced by a VlcPlayer as a scene-graph texture.
+ class VideoItem : public QQuickItem
+diff --git a/src/vlcplayer.cpp b/src/vlcplayer.cpp
+index 1a1481a..ca19198 100644
+--- a/src/vlcplayer.cpp
++++ b/src/vlcplayer.cpp
+@@ -580,7 +580,7 @@ unsigned VlcPlayer::videoSetup(void **opaque, char *chroma, unsigned *w, unsigne
+     pitches[0] = pitch;
+     lines[0] = height;
+ 
+-    const QSize size(int(width), int(height));
++    const QSize size{int(width), int(height)};
+     QMetaObject::invokeMethod(self, [self, size] {
+         self->m_videoSize = size;
+         emit self->videoSizeChanged();
